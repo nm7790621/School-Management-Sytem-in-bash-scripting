@@ -1,0 +1,1 @@
+# School-Management-Sytem-in-bash-scripting

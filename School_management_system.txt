@@ -1,0 +1,391 @@
+#!/bin/bash
+
+# Showing Welcome Screen
+echo -e "\n\t\t<-------------------------------------->"
+echo -e "\t\t\t WELCOME TO STUDENT MANAGEMENT SYSTEM (SMS) \t\t\t"
+echo -e "\t\t<-------------------------------------->\n"
+
+# Showing Main Menu for USER to perform operations
+main_menu(){
+    echo -e "\n === Who's there? ==="
+    echo " 1. Teacher"
+    echo " 2. Student"
+    echo -e " 3. Exit\n"
+}
+
+# This will check if the allotted password is correct or not
+check_Teacher_Password(){
+    if [[ $1 == 12345 ]]; then
+        echo -e "\nCorrect Password"
+        return 0
+    else
+        echo -e "\nIncorrect Password\nHint: 45"  # If wrong password entered, show hint
+        return 1
+    fi
+}
+
+# Teacher Operations Menu
+Teacher_Operations(){
+    while true; do
+        echo -e "\n 1. Add Student"
+        echo " 2. Delete Student"
+        echo " 3. Assign Marks"
+        echo " 4. Calculate Grade"
+        echo " 5. Calculate CGPA"
+        echo " 6. Search the student"
+        echo " 7. List Passed Students"
+        echo " 8. List Failed Students"
+        echo " 9. Display Students"
+        echo -e "10. List of Students (Ascending & Descending according to CGPA)"
+        echo -e "11. Back to Main Menu\n"
+
+        read -p "Please choose an option: " choice
+        case $choice in
+            1) add_student ;;
+            2) delete_student ;;
+            3) Assign_Marks ;;
+            4) calculate_grade ;;
+            5) calculate_CGPA ;;
+            6) search_student ;;
+            7) list_passed_students ;;
+            8) list_failed_students ;;
+            9) display_students ;;
+            10) list_ASC_DESC ;;
+            11) break ;;
+            *) echo -e "Invalid choice\n" ;;
+        esac
+    done
+}
+
+# Student Operations Menu
+Student_Operations(){
+    while true; do
+        echo -e "\nStudent Modules:"
+        echo "1. View Grades"
+        echo "2. View CGPA"
+        echo -e "3. Back to Main Menu\n"
+        
+        read -p "Please choose an option: " choice
+        case $choice in
+            1) view_grades ;;
+            2) view_CGPA ;;
+            3) break ;;
+            *) echo -e "Invalid choice!\n" ;;
+        esac
+    done
+}
+
+# Add new student record
+add_student() {
+    read -p "Enter student Roll No: " roll
+    read -p "Enter student name: " name
+    read -p "Enter PF marks: " pf
+    read -p "Enter OOP marks: " oop
+    read -p "Enter OS marks: " os
+    read -p "Enter DBS marks: " dbs
+    read -p "Enter Prob marks: " prob
+
+    if [ -f "record.txt" ]; then
+        if grep -q "^$roll" record.txt; then
+            echo -e "Same roll no. found. Cannot Insert Record\n"
+            return
+        fi
+    fi
+    
+    echo -e "$roll\t$name\t$pf\t$oop\t$os\t$dbs\t$prob" >> record.txt
+    echo -e "Record Added Successfully\n"
+}
+
+# Delete student record
+delete_student() {
+    read -p "Enter the roll no of student to delete: " roll
+    if [ -f "record.txt" ]; then
+        if grep -q "^$roll" record.txt; then
+            sed -i "/^$roll/d" record.txt
+            [ -f "grades.txt" ] && sed -i "/^$roll/d" grades.txt
+            [ -f "cgpa_result.txt" ] && sed -i "/^$roll/d" cgpa_result.txt
+            echo -e "Student with roll no. $roll deleted successfully\n"
+        else
+            echo -e "Student with roll no. $roll not found\n"
+        fi
+    else
+        echo "Record File does not exist"
+    fi
+}
+
+# Assign/Update marks
+Assign_Marks() {
+    read -p "Enter the roll number of the student to assign marks: " roll
+    if [ -f "record.txt" ]; then
+        if grep -q "^$roll" record.txt; then
+            record=$(grep "^$roll" record.txt)
+            IFS=$'\t' read -r roll_no name pf oop os dbs prob <<< "$record"
+            
+            echo -e "\nCurrent Record:"
+            echo -e "Roll No: $roll_no"
+            echo -e "Name: $name"
+            echo -e "PF: $pf | OOP: $oop | OS: $os | DBS: $dbs | Probability: $prob\n"
+            
+            read -p "Enter new PF marks: " new_pf
+            read -p "Enter new OOP marks: " new_oop
+            read -p "Enter new OS marks: " new_os
+            read -p "Enter new DBS marks: " new_dbs
+            read -p "Enter new Probability marks: " new_prob
+            
+            sed -i "/^$roll/c\\$roll\t$name\t$new_pf\t$new_oop\t$new_os\t$new_dbs\t$new_prob" record.txt
+            echo -e "Marks updated successfully\n"
+            
+            calculate_grade
+            calculate_CGPA
+        else
+            echo -e "Student with roll number $roll not found\n"
+        fi
+    else
+        echo "Record File does not exist"
+    fi
+}
+
+# Calculate grades
+calculate_grade() {
+    if [ ! -f "record.txt" ]; then
+        echo "Error: record.txt file not found!"
+        return 1
+    fi
+
+    > grades.txt
+    while IFS=$'\t' read -r roll_no name pf oop os dbs prob; do
+        pf_grade=$(assign_grade "$pf")
+        oop_grade=$(assign_grade "$oop")
+        os_grade=$(assign_grade "$os")
+        dbs_grade=$(assign_grade "$dbs")
+        prob_grade=$(assign_grade "$prob")
+        echo -e "$roll_no\t$name\t$pf_grade\t$oop_grade\t$os_grade\t$dbs_grade\t$prob_grade" >> grades.txt
+    done < record.txt
+    echo -e "Grades have been assigned to students.\n"
+}
+
+# Assign grade based on marks
+assign_grade() {
+    marks=$1
+    if (( marks >= 95 )); then echo "A+"
+    elif (( marks >= 90 )); then echo "A"
+    elif (( marks >= 85 )); then echo "A-"
+    elif (( marks >= 80 )); then echo "B+"
+    elif (( marks >= 75 )); then echo "B"
+    elif (( marks >= 70 )); then echo "B-"
+    elif (( marks >= 66 )); then echo "C+"
+    elif (( marks >= 60 )); then echo "C"
+    elif (( marks >= 55 )); then echo "C-"
+    elif (( marks >= 50 )); then echo "D"
+    else echo "F"
+    fi
+}
+
+# Calculate CGPA
+calculate_CGPA() {
+    if [ ! -f "grades.txt" ]; then
+        echo "Error: grades.txt file not found. Run 'calculate_grade' first."
+        return 1
+    fi
+
+    > cgpa_result.txt
+    while IFS=$'\t' read -r roll_no name pf_grade oop_grade os_grade dbs_grade prob_grade; do
+        cgpa=$(cal_cgpa "$pf_grade" "$oop_grade" "$os_grade" "$dbs_grade" "$prob_grade")
+        echo -e "$roll_no\t$name\t$pf_grade\t$oop_grade\t$os_grade\t$dbs_grade\t$prob_grade\t$cgpa" >> cgpa_result.txt
+    done < grades.txt
+    echo -e "CGPA calculated for all students.\n"
+}
+
+# Calculate CGPA helper function
+cal_cgpa() {
+    total=0
+    for grade in "$@"; do
+        case $grade in
+            "A+") gp=4.0 ;;
+            "A")  gp=4.0 ;;
+            "A-") gp=3.67 ;;
+            "B+") gp=3.33 ;;
+            "B")  gp=3.0 ;;
+            "B-") gp=2.67 ;;
+            "C+") gp=2.33 ;;
+            "C")  gp=2.0 ;;
+            "C-") gp=1.67 ;;
+            "D")  gp=1.0 ;;
+            *)    gp=0.0 ;;
+        esac
+        total=$(bc <<< "$total + $gp")
+    done
+    cgpa=$(bc <<< "scale=2; $total / 5")
+    echo "$cgpa"
+}
+
+# Search student
+search_student() {
+    read -p "Enter the roll no of student to search: " roll
+    echo -e "\n"
+
+    # Search in record.txt
+    if [ -f "record.txt" ]; then
+        record=$(grep "^$roll" record.txt || echo "Not found in records")
+        echo -e "Academic Record:"
+        echo -e "Roll_no\tName\tPF\tOOP\tOS\tDBS\tPROB"
+        echo "$record"
+    else
+        echo "record.txt not found"
+    fi
+
+    # Search in grades.txt
+    if [ -f "grades.txt" ]; then
+        grades=$(grep "^$roll" grades.txt || echo "Not found in grades")
+        echo -e "\nGrade Report:"
+        echo -e "Roll_no\tName\tPF\tOOP\tOS\tDBS\tPROB"
+        echo "$grades"
+    else
+        echo -e "\ngrades.txt not found"
+    fi
+
+    # Search in cgpa_result.txt
+    if [ -f "cgpa_result.txt" ]; then
+        cgpa=$(grep "^$roll" cgpa_result.txt || echo "Not found in CGPA records")
+        echo -e "\nCGPA Report:"
+        echo -e "Roll_no\tName\tPF\tOOP\tOS\tDBS\tPROB\tCGPA"
+        echo "$cgpa"
+    else
+        echo -e "\ncgpa_result.txt not found"
+    fi
+    echo
+}
+
+# List passed students (CGPA >= 2.00)
+list_passed_students() 
+{
+    if [ ! -f "cgpa_result.txt" ]; then
+        echo "Error: cgpa_result.txt file not found!"
+        return 1
+    fi
+
+    echo -e "\nPassed Students (CGPA >= 2.00):"
+    echo -e "Roll_no\tName\tCGPA"
+    echo "------------------------"
+    passed=0
+    while IFS=$'\t' read -r roll name _ _ _ _ _ cgpa; do
+        if (( $(echo "$cgpa >= 2.00" | bc -l) )); then
+            echo -e "$roll\t$name\t$cgpa"
+            ((passed++))
+        fi
+    done < cgpa_result.txt
+    echo -e "\nTotal passed: $passed\n"
+}
+
+# List failed students (CGPA < 2.00)
+list_failed_students() {
+    if [ ! -f "cgpa_result.txt" ]; then
+        echo "Error: cgpa_result.txt file not found!"
+        return 1
+    fi
+
+    echo -e "\nFailed Students (CGPA < 2.00):"
+    echo -e "Roll_no\tName\tCGPA"
+    echo "------------------------"
+    failed=0
+    while IFS=$'\t' read -r roll name _ _ _ _ _ cgpa; do
+        if (( $(echo "$cgpa < 2.00" | bc -l) )); then
+            echo -e "$roll\t$name\t$cgpa"
+            ((failed++))
+        fi
+    done < cgpa_result.txt
+    echo -e "\nTotal failed: $failed\n"
+}
+
+# Display all student records
+display_students() {
+    echo -e "\nAcademic Records:"
+    echo -e "Roll_no\tName\tPF\tOOP\tOS\tDBS\tPROB"
+    echo "------------------------------------------------"
+    [ -f "record.txt" ] && cat record.txt || echo "No records found"
+    
+    echo -e "\nGrade Reports:"
+    echo -e "Roll_no\tName\tPF\tOOP\tOS\tDBS\tPROB"
+    echo "------------------------------------------------"
+    [ -f "grades.txt" ] && cat grades.txt || echo "No grade records found"
+    
+    echo -e "\nCGPA Reports:"
+    echo -e "Roll_no\tName\tPF\tOOP\tOS\tDBS\tPROB\tCGPA"
+    echo "------------------------------------------------"
+    [ -f "cgpa_result.txt" ] && cat cgpa_result.txt || echo "No CGPA records found"
+    echo
+}
+
+# List students by CGPA (ascending/descending)
+list_ASC_DESC() {
+    if [ ! -f "cgpa_result.txt" ]; then
+        echo "Error: cgpa_result.txt file not found!"
+        return 1
+    fi
+
+    echo -e "\nStudents by CGPA (Ascending):"
+    echo -e "Roll_no\tName\tCGPA"
+    echo "------------------------"
+    sort -t$'\t' -k8,8n cgpa_result.txt | awk -F'\t' '{print $1 "\t" $2 "\t" $8}'
+    
+    echo -e "\nStudents by CGPA (Descending):"
+    echo -e "Roll_no\tName\tCGPA"
+    echo "------------------------"
+    sort -t$'\t' -k8,8nr cgpa_result.txt | awk -F'\t' '{print $1 "\t" $2 "\t" $8}'
+    echo
+}
+
+# View grades (student function)
+view_grades() {
+    read -p "Enter your Roll No: " roll
+    echo -e "\nGrade Report:"
+    if [ -f "grades.txt" ]; then
+        grep "^$roll" grades.txt || echo "No record found for roll no $roll"
+    else
+        echo "grades.txt not found"
+    fi
+    echo
+}
+
+# View CGPA (student function)
+view_CGPA() {
+    read -p "Enter your Roll No: " roll
+    echo -e "\nCGPA Report:"
+    if [ -f "cgpa_result.txt" ]; then
+        grep "^$roll" cgpa_result.txt || echo "No record found for roll no $roll"
+    else
+        echo "cgpa_result.txt not found"
+    fi
+    echo
+}
+
+# Main program loop
+while true; do
+    main_menu
+    read -p "Please select an option: " choice
+    
+    case $choice in
+        1)  # Teacher login
+            read -sp "Please Enter Password: " pass
+            echo
+            if check_Teacher_Password "$pass"; then
+                echo -e "Access Granted!\n"
+                Teacher_Operations
+            else
+                echo "Access Denied!"
+            fi
+            ;;
+        2)  # Student operations
+            Student_Operations
+            ;;
+        3)  # Exit
+            echo -e "\n**** Good Bye! ****"
+            echo -e "Today's Date: $(date "+%Y-%m-%d")"
+            echo -e "Current Time: $(date "+%H:%M:%S")\n"
+            exit 0
+            ;;
+        *)
+            echo "Invalid Input!"
+            ;;
+    esac
+done
